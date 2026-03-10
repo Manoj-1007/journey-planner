@@ -29,6 +29,9 @@ const OperatorDashboard = () => {
     return null;
   }
 
+  const operatorBuses = buses.filter(b => b.operatorId === currentUser.id);
+  const operatorBookings = bookings.filter(b => operatorBuses.some(bus => bus.id === b.busId));
+
   const handleAddBus = (e: React.FormEvent) => {
     e.preventDefault();
     const seats = Array.from({ length: newBus.totalSeats }, (_, i) => i + 1);
