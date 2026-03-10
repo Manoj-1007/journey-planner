@@ -4,26 +4,32 @@ import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useStore } from '@/store/useStore';
+import { useAuth } from '@/hooks/useAuth';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const login = useStore(s => s.login);
+  const [loading, setLoading] = useState(false);
+  const { signIn, role } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const success = login(email, password);
-    if (success) {
-      const user = useStore.getState().currentUser;
-      if (user?.role === 'operator') navigate('/operator');
-      else if (user?.role === 'admin') navigate('/admin');
-      else navigate('/');
+    setLoading(true);
+    const { error } = await signIn(email, password);
+    setLoading(false);
+    if (error) {
+      setError(error.message);
     } else {
-      setError('Invalid email or password');
+      // Wait briefly for role to load, then redirect
+      setTimeout(() => {
+        const r = role;
+        if (r === 'operator') navigate('/operator');
+        else if (r === 'admin') navigate('/admin');
+        else navigate('/');
+      }, 500);
     }
   };
 
@@ -36,16 +42,15 @@ const LoginPage = () => {
           {error && <p className="text-destructive text-sm">{error}</p>}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required className="bg-input" placeholder="user@test.com" />
+            <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required className="bg-input" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-input" placeholder="password" />
+            <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required className="bg-input" />
           </div>
-          <Button type="submit" variant="amber" className="w-full">Login</Button>
-          <p className="text-xs text-muted-foreground text-center mt-4">
-            Demo: user@test.com / operator@test.com / admin@test.com — password: password
-          </p>
+          <Button type="submit" variant="amber" className="w-full" disabled={loading}>
+            {loading ? 'Signing in...' : 'Login'}
+          </Button>
         </form>
       </main>
     </div>

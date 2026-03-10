@@ -1,21 +1,53 @@
 import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import Header from '@/components/Header';
 import SeatMap from '@/components/SeatMap';
-import { useStore, Bus } from '@/store/useStore';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Clock, MapPin } from 'lucide-react';
+
+interface BusRow {
+  id: string;
+  name: string;
+  operator_name: string;
+  route_from: string;
+  route_to: string;
+  departure_time: string;
+  arrival_time: string;
+  date: string;
+  price: number;
+  total_seats: number;
+  available_seats: number[];
+  booked_seats: number[];
+  type: string;
+  operator_id: string;
+}
 
 const SearchResultsPage = () => {
   const [searchParams] = useSearchParams();
   const from = searchParams.get('from') || '';
   const to = searchParams.get('to') || '';
   const date = searchParams.get('date') || '';
-  const searchBuses = useStore(s => s.searchBuses);
-  const currentUser = useStore(s => s.currentUser);
+  const { user } = useAuth();
   const navigate = useNavigate();
 
-  const results = searchBuses(from, to, date);
+  const { data: results = [], isLoading } = useQuery({
+    queryKey: ['buses', from, to, date],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('buses')
+        .select('*')
+        .ilike('route_from', from)
+        .ilike('route_to', to)
+        .eq('date', date);
+      if (error) throw error;
+      return (data || []) as BusRow[];
+    },
+    enabled: !!from && !!to && !!date,
+  });
+
   const [expandedBus, setExpandedBus] = useState<string | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<Record<string, number[]>>({});
 
@@ -27,28 +59,30 @@ const SearchResultsPage = () => {
     });
   };
 
-  const handleBook = (bus: Bus) => {
-    if (!currentUser) {
-      navigate('/login');
-      return;
-    }
+  const handleBook = (bus: BusRow) => {
+    if (!user) { navigate('/login'); return; }
     const seats = selectedSeats[bus.id] || [];
     if (seats.length === 0) return;
     navigate(`/payment?busId=${bus.id}&seats=${seats.join(',')}`);
   };
+
+  // Adapter for SeatMap component
+  const toBusProp = (bus: BusRow) => ({
+    totalSeats: bus.total_seats,
+    availableSeats: bus.available_seats,
+    bookedSeats: bus.booked_seats,
+  });
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
       <main className="container py-8">
         <div className="mb-6">
-          <h1 className="text-xl font-heading font-bold">
-            {from} → {to}
-          </h1>
-          <p className="text-sm text-muted-foreground">{date} · {results.length} bus{results.length !== 1 ? 'es' : ''} found</p>
+          <h1 className="text-xl font-heading font-bold">{from} → {to}</h1>
+          <p className="text-sm text-muted-foreground">{date} · {isLoading ? 'Searching...' : `${results.length} bus${results.length !== 1 ? 'es' : ''} found`}</p>
         </div>
 
-        {results.length === 0 ? (
+        {!isLoading && results.length === 0 ? (
           <div className="bg-card border border-border rounded-lg p-12 text-center">
             <p className="text-muted-foreground">No buses found for this route and date.</p>
             <Button variant="outline" className="mt-4" onClick={() => navigate('/')}>Search Again</Button>
@@ -60,7 +94,6 @@ const SearchResultsPage = () => {
               const busSeats = selectedSeats[bus.id] || [];
               return (
                 <div key={bus.id} className="bg-card border border-border rounded-lg overflow-hidden">
-                  {/* Bus card header */}
                   <button
                     onClick={() => setExpandedBus(isExpanded ? null : bus.id)}
                     className="w-full p-4 text-left hover:bg-muted/30 transition-colors"
@@ -71,34 +104,32 @@ const SearchResultsPage = () => {
                           <span className="font-heading font-semibold text-foreground">{bus.name}</span>
                           <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">{bus.type}</span>
                         </div>
-                        <p className="text-xs text-muted-foreground">{bus.operatorName}</p>
+                        <p className="text-xs text-muted-foreground">{bus.operator_name}</p>
                       </div>
                       <div className="flex items-center gap-6 text-sm">
                         <div className="flex items-center gap-1.5">
                           <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="font-mono">{bus.departureTime}</span>
+                          <span className="font-mono">{bus.departure_time}</span>
                           <span className="text-muted-foreground mx-1">→</span>
-                          <span className="font-mono">{bus.arrivalTime}</span>
+                          <span className="font-mono">{bus.arrival_time}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-muted-foreground">{bus.availableSeats.length} seats</span>
+                          <span className="text-muted-foreground">{bus.available_seats.length} seats</span>
                         </div>
                         <span className="font-heading font-bold text-primary text-lg">₹{bus.price}</span>
                       </div>
                     </div>
                   </button>
 
-                  {/* Expanded: seat map */}
                   {isExpanded && (
                     <div className="border-t border-border p-4">
                       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
                         <SeatMap
-                          bus={bus}
+                          bus={toBusProp(bus)}
                           selectedSeats={busSeats}
                           onToggleSeat={(seat) => toggleSeat(bus.id, seat)}
                         />
-                        {/* Summary panel */}
                         <div className="bg-background border border-border rounded-lg p-4 space-y-3 h-fit">
                           <h3 className="font-heading font-semibold text-sm">Booking Summary</h3>
                           {busSeats.length > 0 ? (
@@ -118,7 +149,7 @@ const SearchResultsPage = () => {
                                 </div>
                               </div>
                               <Button variant="amber" className="w-full" onClick={() => handleBook(bus)}>
-                                {currentUser ? 'Proceed to Pay' : 'Login to Book'}
+                                {user ? 'Proceed to Pay' : 'Login to Book'}
                               </Button>
                             </>
                           ) : (

@@ -1,14 +1,14 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useStore } from '@/store/useStore';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { LogOut, User, Bus, BarChart3 } from 'lucide-react';
 
 const Header = () => {
-  const { currentUser, logout } = useStore();
+  const { user, profile, role, signOut } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await signOut();
     navigate('/');
   };
 
@@ -19,27 +19,27 @@ const Header = () => {
           Vagabond
         </Link>
         <nav className="flex items-center gap-3">
-          {currentUser ? (
+          {user ? (
             <>
-              {currentUser.role === 'user' && (
+              {role === 'user' && (
                 <Button variant="ghost" size="sm" onClick={() => navigate('/bookings')} className="gap-2">
                   <User className="h-4 w-4" />
                   <span className="hidden sm:inline">My Bookings</span>
                 </Button>
               )}
-              {currentUser.role === 'operator' && (
+              {role === 'operator' && (
                 <Button variant="ghost" size="sm" onClick={() => navigate('/operator')} className="gap-2">
                   <Bus className="h-4 w-4" />
                   <span className="hidden sm:inline">Operator Dashboard</span>
                 </Button>
               )}
-              {currentUser.role === 'admin' && (
+              {role === 'admin' && (
                 <Button variant="ghost" size="sm" onClick={() => navigate('/admin')} className="gap-2">
                   <BarChart3 className="h-4 w-4" />
                   <span className="hidden sm:inline">Admin Dashboard</span>
                 </Button>
               )}
-              <span className="text-sm text-muted-foreground hidden sm:inline">{currentUser.name}</span>
+              <span className="text-sm text-muted-foreground hidden sm:inline">{profile?.name}</span>
               <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
                 <LogOut className="h-4 w-4" />
                 <span className="hidden sm:inline">Logout</span>
