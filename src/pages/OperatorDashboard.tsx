@@ -17,20 +17,17 @@ const OperatorDashboard = () => {
   const deleteBus = useStore(s => s.deleteBus);
   const navigate = useNavigate();
 
-  if (!currentUser || currentUser.role !== 'operator') {
-    navigate('/login');
-    return null;
-  }
-
-  const operatorBuses = buses.filter(b => b.operatorId === currentUser.id);
-  const operatorBookings = bookings.filter(b => operatorBuses.some(bus => bus.id === b.busId));
-
   const [showAddForm, setShowAddForm] = useState(false);
   const [newBus, setNewBus] = useState({
     name: '', from: '', to: '', departureTime: '', arrivalTime: '',
     date: '2026-03-15', price: 0, totalSeats: 36,
     type: 'AC Seater' as Bus['type'],
   });
+
+  if (!currentUser || currentUser.role !== 'operator') {
+    navigate('/login');
+    return null;
+  }
 
   const handleAddBus = (e: React.FormEvent) => {
     e.preventDefault();
