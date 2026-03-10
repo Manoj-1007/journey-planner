@@ -1,7 +1,9 @@
-import { Bus } from '@/store/useStore';
-
 interface SeatMapProps {
-  bus: Bus;
+  bus: {
+    totalSeats: number;
+    availableSeats: number[];
+    bookedSeats: number[];
+  };
   selectedSeats: number[];
   onToggleSeat: (seat: number) => void;
 }
@@ -27,32 +29,22 @@ const SeatMap = ({ bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
       </div>
 
       <div className="bg-background border border-border rounded-lg p-4 max-w-xs mx-auto">
-        {/* Driver area */}
         <div className="flex justify-end mb-4 pb-3 border-b border-border">
           <div className="w-8 h-8 rounded-full border border-muted-foreground flex items-center justify-center text-[10px] text-muted-foreground font-mono">D</div>
         </div>
 
-        {/* Seat grid */}
         <div className="space-y-2">
           {Array.from({ length: rows }, (_, row) => {
-            const seatsInRow = [
-              row * 4 + 1,
-              row * 4 + 2,
-              row * 4 + 3,
-              row * 4 + 4,
-            ].filter(s => s <= bus.totalSeats);
-
+            const seatsInRow = [row * 4 + 1, row * 4 + 2, row * 4 + 3, row * 4 + 4].filter(s => s <= bus.totalSeats);
             return (
               <div key={row} className="flex justify-center gap-2">
                 {seatsInRow.map((seatNum, idx) => {
                   const isBooked = bus.bookedSeats.includes(seatNum);
                   const isSelected = selectedSeats.includes(seatNum);
                   const isAvailable = bus.availableSeats.includes(seatNum);
-
                   return (
-                    <>
+                    <div key={seatNum} className="contents">
                       <button
-                        key={seatNum}
                         disabled={isBooked}
                         onClick={() => isAvailable && onToggleSeat(seatNum)}
                         className={`w-8 h-8 rounded-sm font-mono text-xs transition-colors flex items-center justify-center
@@ -65,7 +57,7 @@ const SeatMap = ({ bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
                         {isBooked ? '✕' : seatNum}
                       </button>
                       {idx === 1 && <div className="w-4" />}
-                    </>
+                    </div>
                   );
                 })}
               </div>

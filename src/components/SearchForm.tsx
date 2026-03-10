@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useStore, CITIES_LIST } from '@/store/useStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+const CITIES = ['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Hyderabad', 'Pune', 'Ahmedabad', 'Kolkata', 'Jaipur', 'Lucknow'];
 
 const SearchForm = () => {
   const [from, setFrom] = useState('');
@@ -29,7 +30,7 @@ const SearchForm = () => {
                 <SelectValue placeholder="Origin" />
               </SelectTrigger>
               <SelectContent>
-                {CITIES_LIST.filter(c => c !== to).map(city => (
+                {CITIES.filter(c => c !== to).map(city => (
                   <SelectItem key={city} value={city}>{city}</SelectItem>
                 ))}
               </SelectContent>
@@ -42,7 +43,7 @@ const SearchForm = () => {
                 <SelectValue placeholder="Destination" />
               </SelectTrigger>
               <SelectContent>
-                {CITIES_LIST.filter(c => c !== from).map(city => (
+                {CITIES.filter(c => c !== from).map(city => (
                   <SelectItem key={city} value={city}>{city}</SelectItem>
                 ))}
               </SelectContent>

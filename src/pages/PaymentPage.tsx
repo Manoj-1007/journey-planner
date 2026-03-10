@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Header from '@/components/Header';
-import { useStore } from '@/store/useStore';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -11,43 +13,67 @@ const PaymentPage = () => {
   const busId = searchParams.get('busId') || '';
   const seats = (searchParams.get('seats') || '').split(',').map(Number);
   const [paymentMethod, setPaymentMethod] = useState('upi');
-  const [processing, setProcessing] = useState(false);
-
-  const buses = useStore(s => s.buses);
-  const currentUser = useStore(s => s.currentUser);
-  const bookTicket = useStore(s => s.bookTicket);
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const bus = buses.find(b => b.id === busId);
+  const { data: bus } = useQuery({
+    queryKey: ['bus', busId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('buses').select('*').eq('id', busId).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!busId,
+  });
 
-  if (!bus || !currentUser) {
-    navigate('/');
-    return null;
+  const bookMutation = useMutation({
+    mutationFn: async () => {
+      if (!bus || !user) throw new Error('Missing data');
+      const pmLabel = paymentMethod === 'upi' ? 'UPI' : paymentMethod === 'credit' ? 'Credit Card' : 'Debit Card';
+
+      // Insert booking
+      const { data: booking, error: bookError } = await supabase.from('bookings').insert({
+        user_id: user.id,
+        bus_id: bus.id,
+        bus_name: bus.name,
+        route_from: bus.route_from,
+        route_to: bus.route_to,
+        date: bus.date,
+        departure_time: bus.departure_time,
+        arrival_time: bus.arrival_time,
+        seats,
+        total_amount: seats.length * bus.price,
+        payment_method: pmLabel,
+      }).select().single();
+      if (bookError) throw bookError;
+
+      // Update bus seats
+      const newAvailable = bus.available_seats.filter((s: number) => !seats.includes(s));
+      const newBooked = [...bus.booked_seats, ...seats];
+      const { error: busError } = await supabase.from('buses')
+        .update({ available_seats: newAvailable, booked_seats: newBooked })
+        .eq('id', bus.id);
+      if (busError) throw busError;
+
+      return booking;
+    },
+    onSuccess: (booking) => {
+      queryClient.invalidateQueries({ queryKey: ['buses'] });
+      navigate(`/confirmation/${booking.id}`);
+    },
+  });
+
+  if (!bus || !user) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container py-16 text-center text-muted-foreground">Loading...</main>
+      </div>
+    );
   }
 
   const total = seats.length * bus.price;
-
-  const handlePay = () => {
-    setProcessing(true);
-    // Simulate payment delay
-    setTimeout(() => {
-      const booking = bookTicket({
-        userId: currentUser.id,
-        busId: bus.id,
-        busName: bus.name,
-        from: bus.from,
-        to: bus.to,
-        date: bus.date,
-        departureTime: bus.departureTime,
-        arrivalTime: bus.arrivalTime,
-        seats,
-        totalAmount: total,
-        paymentMethod: paymentMethod === 'upi' ? 'UPI' : paymentMethod === 'credit' ? 'Credit Card' : 'Debit Card',
-      });
-      navigate(`/confirmation/${booking.id}`);
-    }, 1500);
-  };
-
   const methods = [
     { value: 'upi', label: 'UPI' },
     { value: 'credit', label: 'Credit Card' },
@@ -59,7 +85,6 @@ const PaymentPage = () => {
       <Header />
       <main className="container max-w-2xl py-8">
         <h1 className="text-xl font-heading font-bold mb-6">Payment</h1>
-
         <div className="grid grid-cols-1 md:grid-cols-[1fr_260px] gap-6">
           <div className="bg-card border border-border rounded-lg p-6 space-y-6">
             <div>
@@ -73,26 +98,18 @@ const PaymentPage = () => {
                 ))}
               </RadioGroup>
             </div>
-
-            <Button
-              variant="amber"
-              className="w-full"
-              size="lg"
-              onClick={handlePay}
-              disabled={processing}
-            >
-              {processing ? 'Processing Payment...' : `Pay ₹${total}`}
+            <Button variant="amber" className="w-full" size="lg" onClick={() => bookMutation.mutate()} disabled={bookMutation.isPending}>
+              {bookMutation.isPending ? 'Processing Payment...' : `Pay ₹${total}`}
             </Button>
+            {bookMutation.isError && <p className="text-destructive text-sm">{(bookMutation.error as Error).message}</p>}
           </div>
-
-          {/* Summary */}
           <div className="bg-card border border-border rounded-lg p-4 space-y-3 h-fit">
             <h3 className="font-heading font-semibold text-sm">Trip Summary</h3>
             <div className="text-sm space-y-1.5 text-muted-foreground">
               <p className="text-foreground font-medium">{bus.name}</p>
-              <p>{bus.from} → {bus.to}</p>
+              <p>{bus.route_from} → {bus.route_to}</p>
               <p>{bus.date}</p>
-              <p className="font-mono">{bus.departureTime} – {bus.arrivalTime}</p>
+              <p className="font-mono">{bus.departure_time} – {bus.arrival_time}</p>
               <p>Seats: <span className="font-mono text-foreground">{seats.join(', ')}</span></p>
               <div className="border-t border-border pt-2 mt-2 flex justify-between text-foreground font-semibold">
                 <span>Total</span>
