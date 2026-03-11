@@ -40,16 +40,25 @@ const PaymentPage = () => {
       const total = seats.length * bus.price;
 
       // 1. Create Razorpay order via edge function
-      const { data: orderData, error: orderError } = await supabase.functions.invoke('create-razorpay-order', {
-        body: {
+      const { data: { session } } = await supabase.auth.getSession();
+      const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-razorpay-order`;
+      const orderRes = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({
           amount: total,
           currency: 'INR',
           receipt: `bus_${bus.id}_${Date.now()}`,
           notes: { bus_id: bus.id, user_id: user.id, seats: seats.join(',') },
-        },
+        }),
       });
+      const orderData = await orderRes.json();
 
-      if (orderError || !orderData?.order_id) {
+      if (!orderRes.ok || !orderData?.order_id) {
         throw new Error(orderData?.error || 'Failed to create order');
       }
 
