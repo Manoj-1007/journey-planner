@@ -82,14 +82,14 @@ const PaymentPage = () => {
             const newAvailable = bus.available_seats.filter((s: number) => !seats.includes(s));
             const newBooked = [...bus.booked_seats, ...seats];
 
+            const verifyAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
             const verifyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-razorpay-payment`;
-            const { data: { session: currentSession } } = await supabase.auth.getSession();
             const verifyRes = await fetch(verifyUrl, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${currentSession?.access_token}`,
-                'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+                'Authorization': `Bearer ${verifyAnonKey}`,
+                'apikey': verifyAnonKey,
               },
               body: JSON.stringify({
                 razorpay_order_id: response.razorpay_order_id,
