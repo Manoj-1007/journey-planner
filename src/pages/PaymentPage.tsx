@@ -40,26 +40,17 @@ const PaymentPage = () => {
       const total = seats.length * bus.price;
 
       // 1. Create Razorpay order via edge function
-      const { data: { session } } = await supabase.auth.getSession();
-      const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-razorpay-order`;
-      const orderRes = await fetch(functionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
-          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        },
-        body: JSON.stringify({
+      const { data: orderData, error: orderError } = await supabase.functions.invoke('create-razorpay-order', {
+        body: {
           amount: total,
           currency: 'INR',
           receipt: `bus_${bus.id}_${Date.now()}`,
           notes: { bus_id: bus.id, user_id: user.id, seats: seats.join(',') },
-        }),
+        },
       });
-      const orderData = await orderRes.json();
 
-      if (!orderRes.ok || !orderData?.order_id) {
-        throw new Error(orderData?.error || 'Failed to create order');
+      if (orderError || !orderData?.order_id) {
+        throw new Error(orderData?.error || orderError?.message || 'Failed to create order');
       }
 
       // 2. Open Razorpay checkout
@@ -82,16 +73,8 @@ const PaymentPage = () => {
             const newAvailable = bus.available_seats.filter((s: number) => !seats.includes(s));
             const newBooked = [...bus.booked_seats, ...seats];
 
-            const verifyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-razorpay-payment`;
-            const { data: { session: currentSession } } = await supabase.auth.getSession();
-            const verifyRes = await fetch(verifyUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${currentSession?.access_token}`,
-                'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              },
-              body: JSON.stringify({
+            const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment', {
+              body: {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
@@ -109,11 +92,10 @@ const PaymentPage = () => {
                   new_available_seats: newAvailable,
                   new_booked_seats: newBooked,
                 },
-              }),
+              },
             });
-            const verifyData = await verifyRes.json();
 
-            if (!verifyRes.ok || !verifyData?.success) {
+            if (verifyError || !verifyData?.success) {
               throw new Error(verifyData?.error || 'Payment verification failed');
             }
 
