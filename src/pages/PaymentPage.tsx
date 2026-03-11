@@ -1,19 +1,24 @@
 import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Header from '@/components/Header';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { toast } from 'sonner';
+
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 
 const PaymentPage = () => {
   const [searchParams] = useSearchParams();
   const busId = searchParams.get('busId') || '';
   const seats = (searchParams.get('seats') || '').split(',').map(Number);
-  const [paymentMethod, setPaymentMethod] = useState('upi');
-  const { user } = useAuth();
+  const [processing, setProcessing] = useState(false);
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -27,42 +32,101 @@ const PaymentPage = () => {
     enabled: !!busId,
   });
 
-  const bookMutation = useMutation({
-    mutationFn: async () => {
-      if (!bus || !user) throw new Error('Missing data');
-      const pmLabel = paymentMethod === 'upi' ? 'UPI' : paymentMethod === 'credit' ? 'Credit Card' : 'Debit Card';
+  const handlePayment = async () => {
+    if (!bus || !user) return;
+    setProcessing(true);
 
-      // Insert booking
-      const { data: booking, error: bookError } = await supabase.from('bookings').insert({
-        user_id: user.id,
-        bus_id: bus.id,
-        bus_name: bus.name,
-        route_from: bus.route_from,
-        route_to: bus.route_to,
-        date: bus.date,
-        departure_time: bus.departure_time,
-        arrival_time: bus.arrival_time,
-        seats,
-        total_amount: seats.length * bus.price,
-        payment_method: pmLabel,
-      }).select().single();
-      if (bookError) throw bookError;
+    try {
+      const total = seats.length * bus.price;
 
-      // Update bus seats
-      const newAvailable = bus.available_seats.filter((s: number) => !seats.includes(s));
-      const newBooked = [...bus.booked_seats, ...seats];
-      const { error: busError } = await supabase.from('buses')
-        .update({ available_seats: newAvailable, booked_seats: newBooked })
-        .eq('id', bus.id);
-      if (busError) throw busError;
+      // 1. Create Razorpay order via edge function
+      const { data: orderData, error: orderError } = await supabase.functions.invoke('create-razorpay-order', {
+        body: {
+          amount: total,
+          currency: 'INR',
+          receipt: `bus_${bus.id}_${Date.now()}`,
+          notes: { bus_id: bus.id, user_id: user.id, seats: seats.join(',') },
+        },
+      });
 
-      return booking;
-    },
-    onSuccess: (booking) => {
-      queryClient.invalidateQueries({ queryKey: ['buses'] });
-      navigate(`/confirmation/${booking.id}`);
-    },
-  });
+      if (orderError || !orderData?.order_id) {
+        throw new Error(orderData?.error || 'Failed to create order');
+      }
+
+      // 2. Open Razorpay checkout
+      const options = {
+        key: orderData.key_id,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'Bus Booking',
+        description: `${bus.route_from} → ${bus.route_to} | Seats: ${seats.join(', ')}`,
+        order_id: orderData.order_id,
+        prefill: {
+          name: profile?.name || '',
+          email: user.email || '',
+          contact: profile?.phone || '',
+        },
+        theme: { color: '#f59e0b' },
+        handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+          try {
+            // 3. Verify payment & create booking via edge function
+            const newAvailable = bus.available_seats.filter((s: number) => !seats.includes(s));
+            const newBooked = [...bus.booked_seats, ...seats];
+
+            const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment', {
+              body: {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                booking_data: {
+                  user_id: user.id,
+                  bus_id: bus.id,
+                  bus_name: bus.name,
+                  route_from: bus.route_from,
+                  route_to: bus.route_to,
+                  date: bus.date,
+                  departure_time: bus.departure_time,
+                  arrival_time: bus.arrival_time,
+                  seats,
+                  total_amount: total,
+                  new_available_seats: newAvailable,
+                  new_booked_seats: newBooked,
+                },
+              },
+            });
+
+            if (verifyError || !verifyData?.success) {
+              throw new Error(verifyData?.error || 'Payment verification failed');
+            }
+
+            toast.success('Payment successful!');
+            queryClient.invalidateQueries({ queryKey: ['buses'] });
+            navigate(`/confirmation/${verifyData.booking.id}`);
+          } catch (err: any) {
+            toast.error(err.message || 'Payment verification failed');
+          } finally {
+            setProcessing(false);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setProcessing(false);
+            toast.info('Payment cancelled');
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', (response: any) => {
+        setProcessing(false);
+        toast.error(response.error?.description || 'Payment failed');
+      });
+      rzp.open();
+    } catch (err: any) {
+      setProcessing(false);
+      toast.error(err.message || 'Something went wrong');
+    }
+  };
 
   if (!bus || !user) {
     return (
@@ -74,11 +138,6 @@ const PaymentPage = () => {
   }
 
   const total = seats.length * bus.price;
-  const methods = [
-    { value: 'upi', label: 'UPI' },
-    { value: 'credit', label: 'Credit Card' },
-    { value: 'debit', label: 'Debit Card' },
-  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -88,20 +147,14 @@ const PaymentPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-[1fr_260px] gap-6">
           <div className="bg-card border border-border rounded-lg p-6 space-y-6">
             <div>
-              <h2 className="font-heading font-semibold text-sm mb-3">Select Payment Method</h2>
-              <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="space-y-2">
-                {methods.map(m => (
-                  <div key={m.value} className="flex items-center space-x-3 bg-background border border-border rounded-lg p-3 cursor-pointer hover:border-primary/50 transition-colors">
-                    <RadioGroupItem value={m.value} id={m.value} />
-                    <Label htmlFor={m.value} className="cursor-pointer">{m.label}</Label>
-                  </div>
-                ))}
-              </RadioGroup>
+              <h2 className="font-heading font-semibold text-sm mb-3">Pay with Razorpay</h2>
+              <p className="text-sm text-muted-foreground">
+                You'll be redirected to Razorpay's secure checkout to complete payment via UPI, cards, wallets, or net banking.
+              </p>
             </div>
-            <Button variant="amber" className="w-full" size="lg" onClick={() => bookMutation.mutate()} disabled={bookMutation.isPending}>
-              {bookMutation.isPending ? 'Processing Payment...' : `Pay ₹${total}`}
+            <Button variant="amber" className="w-full" size="lg" onClick={handlePayment} disabled={processing}>
+              {processing ? 'Processing...' : `Pay ₹${total}`}
             </Button>
-            {bookMutation.isError && <p className="text-destructive text-sm">{(bookMutation.error as Error).message}</p>}
           </div>
           <div className="bg-card border border-border rounded-lg p-4 space-y-3 h-fit">
             <h3 className="font-heading font-semibold text-sm">Trip Summary</h3>
