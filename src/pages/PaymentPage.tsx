@@ -73,16 +73,8 @@ const PaymentPage = () => {
             const newAvailable = bus.available_seats.filter((s: number) => !seats.includes(s));
             const newBooked = [...bus.booked_seats, ...seats];
 
-            const verifyAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-            const verifyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-razorpay-payment`;
-            const verifyRes = await fetch(verifyUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${verifyAnonKey}`,
-                'apikey': verifyAnonKey,
-              },
-              body: JSON.stringify({
+            const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment', {
+              body: {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
@@ -100,11 +92,10 @@ const PaymentPage = () => {
                   new_available_seats: newAvailable,
                   new_booked_seats: newBooked,
                 },
-              }),
+              },
             });
-            const verifyData = await verifyRes.json();
 
-            if (!verifyRes.ok || !verifyData?.success) {
+            if (verifyError || !verifyData?.success) {
               throw new Error(verifyData?.error || 'Payment verification failed');
             }
 
