@@ -113,7 +113,7 @@ const PaymentPage = () => {
             });
             const verifyData = await verifyRes.json();
 
-            if (verifyError || !verifyData?.success) {
+            if (!verifyRes.ok || !verifyData?.success) {
               throw new Error(verifyData?.error || 'Payment verification failed');
             }
 
