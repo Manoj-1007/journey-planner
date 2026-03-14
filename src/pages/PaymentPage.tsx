@@ -13,6 +13,8 @@ declare global {
   }
 }
 
+const RAZORPAY_KEY_ID = 'rzp_test_SQFrMtY8e9LTOh';
+
 const PaymentPage = () => {
   const [searchParams] = useSearchParams();
   const busId = searchParams.get('busId') || '';
@@ -39,91 +41,52 @@ const PaymentPage = () => {
     try {
       const total = seats.length * bus.price;
 
-      // 1. Create Razorpay order via edge function
-      const orderRes = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-razorpay-order`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-          body: JSON.stringify({
-            amount: total,
-            currency: 'INR',
-            receipt: `bus_${bus.id}_${Date.now()}`,
-            notes: { bus_id: bus.id, user_id: user.id, seats: seats.join(',') },
-          }),
-        }
-      );
-      const orderData = await orderRes.json();
-
-      if (!orderRes.ok || !orderData?.order_id) {
-        throw new Error(orderData?.error || 'Failed to create order');
-      }
-
-      // 2. Open Razorpay checkout
       const options = {
-        key: orderData.key_id,
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: 'Bus Booking',
+        key: RAZORPAY_KEY_ID,
+        amount: total * 100, // Razorpay expects paise
+        currency: 'INR',
+        name: 'Bus Ticket Booking',
         description: `${bus.route_from} → ${bus.route_to} | Seats: ${seats.join(', ')}`,
-        order_id: orderData.order_id,
         prefill: {
           name: profile?.name || '',
           email: user.email || '',
           contact: profile?.phone || '',
         },
         theme: { color: '#f59e0b' },
-        handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+        handler: async (response: { razorpay_payment_id: string }) => {
           try {
-            // 3. Verify payment & create booking via edge function
+            // Save booking after successful payment
             const newAvailable = bus.available_seats.filter((s: number) => !seats.includes(s));
             const newBooked = [...bus.booked_seats, ...seats];
 
-            const verifyRes = await fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-razorpay-payment`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-                  'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-                },
-                body: JSON.stringify({
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature,
-                  booking_data: {
-                    user_id: user.id,
-                    bus_id: bus.id,
-                    bus_name: bus.name,
-                    route_from: bus.route_from,
-                    route_to: bus.route_to,
-                    date: bus.date,
-                    departure_time: bus.departure_time,
-                    arrival_time: bus.arrival_time,
-                    seats,
-                    total_amount: total,
-                    new_available_seats: newAvailable,
-                    new_booked_seats: newBooked,
-                  },
-                }),
-              }
-            );
-            const verifyData = await verifyRes.json();
+            const { data: booking, error: bookError } = await supabase.from('bookings').insert({
+              user_id: user.id,
+              bus_id: bus.id,
+              bus_name: bus.name,
+              route_from: bus.route_from,
+              route_to: bus.route_to,
+              date: bus.date,
+              departure_time: bus.departure_time,
+              arrival_time: bus.arrival_time,
+              seats,
+              total_amount: total,
+              payment_method: `Razorpay (${response.razorpay_payment_id})`,
+            }).select().single();
 
-            if (!verifyRes.ok || !verifyData?.success) {
-              throw new Error(verifyData?.error || 'Payment verification failed');
-            }
+            if (bookError) throw bookError;
+
+            // Update bus seats
+            const { error: busError } = await supabase.from('buses')
+              .update({ available_seats: newAvailable, booked_seats: newBooked })
+              .eq('id', bus.id);
+
+            if (busError) throw busError;
 
             toast.success('Payment successful!');
             queryClient.invalidateQueries({ queryKey: ['buses'] });
-            navigate(`/confirmation/${verifyData.booking.id}`);
+            navigate(`/confirmation/${booking.id}`);
           } catch (err: any) {
-            toast.error(err.message || 'Payment verification failed');
+            toast.error(err.message || 'Booking save failed');
           } finally {
             setProcessing(false);
           }
