@@ -39,6 +39,13 @@ const PaymentPage = () => {
     try {
       const total = seats.length * bus.price;
 
+      // Get the user's session token for gateway auth
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      const accessToken = currentSession?.access_token;
+      if (!accessToken) {
+        throw new Error('Please log in to continue');
+      }
+
       // 1. Create Razorpay order via edge function
       const orderRes = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-razorpay-order`,
@@ -46,7 +53,7 @@ const PaymentPage = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Authorization': `Bearer ${accessToken}`,
             'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           },
           body: JSON.stringify({
