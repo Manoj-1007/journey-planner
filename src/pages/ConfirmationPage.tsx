@@ -1,13 +1,15 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useRef } from 'react';
 import Header from '@/components/Header';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Download, Printer } from 'lucide-react';
 
 const ConfirmationPage = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
+  const ticketRef = useRef<HTMLDivElement>(null);
 
   const { data: booking, isLoading } = useQuery({
     queryKey: ['booking', bookingId],
@@ -76,6 +78,22 @@ const ConfirmationPage = () => {
               <span>Total Paid</span>
               <span className="text-primary font-heading">₹{booking.total_amount}</span>
             </div>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1.5">
+              <Printer className="h-4 w-4" /> Print
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => {
+              const content = ticketRef.current;
+              if (!content) return;
+              const printWindow = window.open('', '_blank');
+              if (!printWindow) return;
+              printWindow.document.write(`<html><head><title>Ticket-${booking.id.slice(0,8)}</title><style>body{font-family:system-ui,sans-serif;padding:2rem;max-width:480px;margin:auto}h1{font-size:1.25rem;margin-bottom:.5rem}.row{display:flex;justify-content:space-between;padding:.35rem 0;font-size:.875rem;border-bottom:1px solid #eee}.label{color:#888}.total{font-weight:700;border-top:2px solid #333;margin-top:.5rem;padding-top:.5rem}</style></head><body><h1>🎫 Bus Ticket</h1><p style="color:#888;font-size:.8rem">Ticket ID: ${booking.id.slice(0,8)}</p><div class="row"><span class="label">Bus</span><span>${booking.bus_name}</span></div><div class="row"><span class="label">Route</span><span>${booking.route_from} → ${booking.route_to}</span></div><div class="row"><span class="label">Date</span><span>${booking.date}</span></div><div class="row"><span class="label">Time</span><span>${booking.departure_time} – ${booking.arrival_time}</span></div><div class="row"><span class="label">Seats</span><span>${booking.seats.join(', ')}</span></div><div class="row"><span class="label">Payment</span><span>${booking.payment_method}</span></div><div class="row total"><span>Total Paid</span><span>₹${booking.total_amount}</span></div></body></html>`);
+              printWindow.document.close();
+              printWindow.print();
+            }} className="gap-1.5">
+              <Download className="h-4 w-4" /> Download
+            </Button>
           </div>
           <div className="flex gap-3">
             <Button variant="outline" className="flex-1" onClick={() => navigate('/bookings')}>View Bookings</Button>
