@@ -1,9 +1,10 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useRef } from 'react';
 import Header from '@/components/Header';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Download, Printer } from 'lucide-react';
 
 const ConfirmationPage = () => {
   const { bookingId } = useParams();
