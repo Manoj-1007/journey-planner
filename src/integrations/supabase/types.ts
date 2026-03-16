@@ -183,6 +183,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      auto_update_bus_dates: { Args: never; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
