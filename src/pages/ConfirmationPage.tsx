@@ -9,7 +9,7 @@ import { CheckCircle2, Download, Printer } from 'lucide-react';
 const ConfirmationPage = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
-  const ticketRef = useRef<HTMLDivElement>(null);
+  
 
   const { data: booking, isLoading } = useQuery({
     queryKey: ['booking', bookingId],
