@@ -63,7 +63,7 @@ const SearchResultsPage = () => {
     if (!user) { navigate('/login'); return; }
     const seats = selectedSeats[bus.id] || [];
     if (seats.length === 0) return;
-    navigate(`/payment?busId=${bus.id}&seats=${seats.join(',')}`);
+    navigate(`/passenger-details?busId=${bus.id}&seats=${seats.join(',')}`);
   };
 
   // Adapter for SeatMap component

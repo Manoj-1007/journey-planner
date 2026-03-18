@@ -9,6 +9,8 @@ import NotFound from "./pages/NotFound.tsx";
 import LoginPage from "./pages/LoginPage.tsx";
 import RegisterPage from "./pages/RegisterPage.tsx";
 import SearchResultsPage from "./pages/SearchResultsPage.tsx";
+import PassengerDetailsPage from "./pages/PassengerDetailsPage.tsx";
+import OtpVerificationPage from "./pages/OtpVerificationPage.tsx";
 import PaymentPage from "./pages/PaymentPage.tsx";
 import ConfirmationPage from "./pages/ConfirmationPage.tsx";
 import BookingHistoryPage from "./pages/BookingHistoryPage.tsx";
@@ -29,6 +31,8 @@ const App = () => (
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/search" element={<SearchResultsPage />} />
+            <Route path="/passenger-details" element={<PassengerDetailsPage />} />
+            <Route path="/otp-verify" element={<OtpVerificationPage />} />
             <Route path="/payment" element={<PaymentPage />} />
             <Route path="/confirmation/:bookingId" element={<ConfirmationPage />} />
             <Route path="/bookings" element={<BookingHistoryPage />} />
