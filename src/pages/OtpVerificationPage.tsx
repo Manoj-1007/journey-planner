@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { ShieldCheck, RefreshCw } from 'lucide-react';
+import { ShieldCheck, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 
 const OtpVerificationPage = () => {
   const [searchParams] = useSearchParams();
@@ -18,6 +18,8 @@ const OtpVerificationPage = () => {
   const [generatedOtp, setGeneratedOtp] = useState('');
   const [sent, setSent] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [cooldown, setCooldown] = useState(0);
 
   const generateOtp = useCallback(() => {
@@ -25,7 +27,7 @@ const OtpVerificationPage = () => {
     setGeneratedOtp(code);
     setSent(true);
     setCooldown(30);
-    // Simulate sending OTP
+    setFailed(false);
     toast.success(`OTP sent! (Demo: ${code})`, { duration: 8000 });
   }, []);
 
@@ -51,10 +53,13 @@ const OtpVerificationPage = () => {
     setVerifying(true);
     setTimeout(() => {
       if (otp === generatedOtp) {
+        setVerified(true);
+        setFailed(false);
         toast.success('OTP verified successfully!');
         sessionStorage.setItem('otpVerified', 'true');
-        navigate(`/payment?busId=${busId}&seats=${seats}`);
+        setTimeout(() => navigate(`/payment?busId=${busId}&seats=${seats}`), 800);
       } else {
+        setFailed(true);
         toast.error('Incorrect OTP. Please try again.');
       }
       setVerifying(false);
@@ -78,43 +83,61 @@ const OtpVerificationPage = () => {
   const contactInfo = profile?.phone || user.email || '';
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full bg-primary/8 blur-[120px] pointer-events-none" />
       <Header />
-      <main className="container max-w-sm py-16">
-        <div className="bg-card border border-border rounded-lg p-8 space-y-6 text-center">
-          <ShieldCheck className="h-14 w-14 text-accent mx-auto" />
+      <main className="container max-w-sm py-16 relative z-10">
+        <div className="glass rounded-2xl p-8 space-y-6 text-center animate-slide-up">
+          {verified ? (
+            <CheckCircle2 className="h-16 w-16 text-accent mx-auto animate-fade-in" />
+          ) : failed ? (
+            <XCircle className="h-16 w-16 text-destructive mx-auto" />
+          ) : (
+            <ShieldCheck className="h-16 w-16 text-primary mx-auto animate-float" />
+          )}
           <div>
-            <h1 className="text-xl font-heading font-bold mb-1">OTP Verification</h1>
+            <h1 className="text-xl font-heading font-bold mb-1">
+              {verified ? 'Verified!' : 'OTP Verification'}
+            </h1>
             <p className="text-sm text-muted-foreground">
-              A 6-digit code has been sent to <span className="text-foreground font-medium">{contactInfo}</span>
+              {verified
+                ? 'Redirecting to payment...'
+                : <>A 6-digit code has been sent to <span className="text-foreground font-medium">{contactInfo}</span></>
+              }
             </p>
           </div>
 
-          <div className="space-y-3">
-            <Input
-              className="text-center text-lg tracking-[0.5em] font-mono"
-              maxLength={6}
-              placeholder="• • • • • •"
-              value={otp}
-              onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              onKeyDown={e => e.key === 'Enter' && handleVerify()}
-            />
+          {!verified && (
+            <div className="space-y-3">
+              <Input
+                className={`text-center text-lg tracking-[0.5em] font-mono bg-input/50 h-14 rounded-xl ${failed ? 'border-destructive' : ''}`}
+                maxLength={6}
+                placeholder="• • • • • •"
+                value={otp}
+                onChange={e => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setFailed(false); }}
+                onKeyDown={e => e.key === 'Enter' && handleVerify()}
+              />
 
-            <Button variant="amber" className="w-full" size="lg" onClick={handleVerify} disabled={verifying}>
-              {verifying ? 'Verifying...' : 'Verify & Proceed to Payment'}
-            </Button>
+              {failed && (
+                <p className="text-xs text-destructive font-medium">Incorrect OTP. Please try again.</p>
+              )}
 
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 text-muted-foreground"
-              onClick={handleResend}
-              disabled={cooldown > 0}
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend OTP'}
-            </Button>
-          </div>
+              <Button variant="amber" className="w-full" size="lg" onClick={handleVerify} disabled={verifying}>
+                {verifying ? 'Verifying...' : 'Verify & Proceed'}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-muted-foreground"
+                onClick={handleResend}
+                disabled={cooldown > 0}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend OTP'}
+              </Button>
+            </div>
+          )}
         </div>
       </main>
     </div>

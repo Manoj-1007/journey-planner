@@ -13,26 +13,29 @@ const SeatMap = ({ bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-6 text-xs text-muted-foreground">
+      {/* Legend */}
+      <div className="flex items-center gap-5 text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 border border-foreground/30 rounded-sm" />
+          <div className="w-7 h-7 border border-border rounded-md bg-muted/30" />
           <span>Available</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-muted rounded-sm flex items-center justify-center text-muted-foreground font-mono text-[10px]">✕</div>
-          <span>Booked</span>
+          <div className="w-7 h-7 bg-destructive/80 rounded-md flex items-center justify-center text-destructive-foreground font-mono text-[10px]">✕</div>
+          <span className="text-destructive">Booked</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-primary rounded-sm" />
-          <span>Selected</span>
+          <div className="w-7 h-7 rounded-md" style={{ background: 'hsl(145, 70%, 42%)' }} />
+          <span style={{ color: 'hsl(145, 70%, 42%)' }}>Selected</span>
         </div>
       </div>
 
-      <div className="bg-background border border-border rounded-lg p-4 max-w-xs mx-auto">
+      <div className="glass rounded-xl p-5 max-w-xs mx-auto">
+        {/* Driver */}
         <div className="flex justify-end mb-4 pb-3 border-b border-border">
-          <div className="w-8 h-8 rounded-full border border-muted-foreground flex items-center justify-center text-[10px] text-muted-foreground font-mono">D</div>
+          <div className="w-9 h-9 rounded-full border-2 border-muted-foreground/40 flex items-center justify-center text-xs text-muted-foreground font-heading">D</div>
         </div>
 
+        {/* Seats */}
         <div className="space-y-2">
           {Array.from({ length: rows }, (_, row) => {
             const seatsInRow = [row * 4 + 1, row * 4 + 2, row * 4 + 3, row * 4 + 4].filter(s => s <= bus.totalSeats);
@@ -47,16 +50,17 @@ const SeatMap = ({ bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
                       <button
                         disabled={isBooked}
                         onClick={() => isAvailable && onToggleSeat(seatNum)}
-                        className={`w-8 h-8 rounded-sm font-mono text-xs transition-colors flex items-center justify-center
-                          ${isBooked ? 'bg-muted text-muted-foreground cursor-not-allowed' : ''}
-                          ${isSelected ? 'bg-primary text-primary-foreground' : ''}
-                          ${isAvailable && !isSelected ? 'border border-foreground/30 hover:border-primary hover:shadow-[0_0_8px_hsl(43,100%,50%,0.3)] cursor-pointer' : ''}
+                        className={`w-9 h-9 rounded-md font-mono text-xs transition-all duration-200 flex items-center justify-center font-medium
+                          ${isBooked ? 'bg-destructive/80 text-destructive-foreground cursor-not-allowed' : ''}
+                          ${isSelected ? 'text-white shadow-lg shadow-green-500/30' : ''}
+                          ${isAvailable && !isSelected ? 'border border-border bg-muted/30 hover:border-primary hover:shadow-[0_0_12px_hsl(250,85%,65%,0.3)] cursor-pointer' : ''}
                         `}
+                        style={isSelected ? { background: 'hsl(145, 70%, 42%)' } : undefined}
                         title={`Seat ${seatNum}`}
                       >
                         {isBooked ? '✕' : seatNum}
                       </button>
-                      {idx === 1 && <div className="w-4" />}
+                      {idx === 1 && <div className="w-5" />}
                     </div>
                   );
                 })}
