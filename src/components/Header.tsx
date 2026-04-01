@@ -13,12 +13,15 @@ const Header = () => {
   };
 
   return (
-    <header className="border-b border-border bg-card">
-      <div className="container flex h-14 items-center justify-between">
-        <Link to="/" className="font-heading text-lg font-bold text-primary">
-          Vagabond
+    <header className="glass-strong sticky top-0 z-50">
+      <div className="container flex h-16 items-center justify-between">
+        <Link to="/" className="font-heading text-xl font-bold gradient-text">
+          🚌 BusGo
         </Link>
-        <nav className="flex items-center gap-3">
+        <nav className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+            Home
+          </Button>
           {user ? (
             <>
               {role === 'user' && (
@@ -30,19 +33,18 @@ const Header = () => {
               {role === 'operator' && (
                 <Button variant="ghost" size="sm" onClick={() => navigate('/operator')} className="gap-2">
                   <Bus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Operator Dashboard</span>
+                  <span className="hidden sm:inline">Operator</span>
                 </Button>
               )}
               {role === 'admin' && (
                 <Button variant="ghost" size="sm" onClick={() => navigate('/admin')} className="gap-2">
                   <BarChart3 className="h-4 w-4" />
-                  <span className="hidden sm:inline">Admin Dashboard</span>
+                  <span className="hidden sm:inline">Admin</span>
                 </Button>
               )}
               <span className="text-sm text-muted-foreground hidden sm:inline">{profile?.name}</span>
               <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
                 <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Logout</span>
               </Button>
             </>
           ) : (
