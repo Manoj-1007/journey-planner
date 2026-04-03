@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Trash2, UserPlus, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, UserPlus, ArrowLeft, User, Calendar, Hash } from 'lucide-react';
 
 export interface Passenger {
   name: string;
@@ -34,7 +35,6 @@ export function getTicketLabel(type: TicketType): string {
 export function calculateFare(passengers: Passenger[], pricePerSeat: number) {
   let total = 0;
   const breakdown: { name: string; age: number; gender: string; type: TicketType; fare: number }[] = [];
-
   for (const p of passengers) {
     const age = parseInt(p.age, 10);
     if (isNaN(age) || age < 0) continue;
@@ -43,7 +43,6 @@ export function calculateFare(passengers: Passenger[], pricePerSeat: number) {
     total += fare;
     breakdown.push({ name: p.name, age, gender: p.gender || 'Other', type, fare });
   }
-
   return { total, breakdown };
 }
 
@@ -88,19 +87,10 @@ const PassengerDetailsPage = () => {
   const validate = (): boolean => {
     for (let i = 0; i < passengers.length; i++) {
       const p = passengers[i];
-      if (!p.name.trim()) {
-        toast.error(`Please enter name for Passenger ${i + 1}`);
-        return false;
-      }
+      if (!p.name.trim()) { toast.error(`Please enter name for Passenger ${i + 1}`); return false; }
       const age = parseInt(p.age, 10);
-      if (isNaN(age) || age < 0 || age > 150) {
-        toast.error(`Please enter a valid age for Passenger ${i + 1}`);
-        return false;
-      }
-      if (!p.gender) {
-        toast.error(`Please select gender for Passenger ${i + 1}`);
-        return false;
-      }
+      if (isNaN(age) || age < 0 || age > 150) { toast.error(`Please enter a valid age for Passenger ${i + 1}`); return false; }
+      if (!p.gender) { toast.error(`Please select gender for Passenger ${i + 1}`); return false; }
     }
     return true;
   };
@@ -115,7 +105,11 @@ const PassengerDetailsPage = () => {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <main className="container py-16 text-center text-muted-foreground">Loading...</main>
+        <main className="container py-16 text-center">
+          <div className="space-y-3 max-w-md mx-auto">
+            {[1, 2].map(i => <div key={i} className="skeleton h-32 w-full" />)}
+          </div>
+        </main>
       </div>
     );
   }
@@ -137,7 +131,8 @@ const PassengerDetailsPage = () => {
             {passengers.map((p, i) => (
               <div key={i} className="glass rounded-xl p-5 space-y-3 animate-slide-up" style={{ animationDelay: `${i * 0.05}s` }}>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-heading font-semibold text-foreground">
+                  <span className="text-sm font-heading font-semibold text-foreground flex items-center gap-2">
+                    <User className="h-4 w-4 text-primary" />
                     Passenger {i + 1} — Seat {seats[i]}
                   </span>
                   {passengers.length > 1 && (
@@ -149,31 +144,16 @@ const PassengerDetailsPage = () => {
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs uppercase tracking-wider text-muted-foreground">Full Name</Label>
-                    <Input
-                      placeholder="Enter name"
-                      value={p.name}
-                      onChange={e => updatePassenger(i, 'name', e.target.value)}
-                      className="bg-input/50"
-                    />
+                    <Input placeholder="Enter name" value={p.name} onChange={e => updatePassenger(i, 'name', e.target.value)} className="bg-input/50 focus:ring-2 focus:ring-primary/30 transition-shadow" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs uppercase tracking-wider text-muted-foreground">Age</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={150}
-                      placeholder="Age"
-                      value={p.age}
-                      onChange={e => updatePassenger(i, 'age', e.target.value)}
-                      className="bg-input/50"
-                    />
+                    <Input type="number" min={0} max={150} placeholder="Age" value={p.age} onChange={e => updatePassenger(i, 'age', e.target.value)} className="bg-input/50 focus:ring-2 focus:ring-primary/30 transition-shadow" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs uppercase tracking-wider text-muted-foreground">Gender</Label>
                     <Select value={p.gender} onValueChange={v => updatePassenger(i, 'gender', v)}>
-                      <SelectTrigger className="bg-input/50">
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
+                      <SelectTrigger className="bg-input/50"><SelectValue placeholder="Select" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Male">Male</SelectItem>
                         <SelectItem value="Female">Female</SelectItem>
@@ -185,11 +165,9 @@ const PassengerDetailsPage = () => {
                 {p.age && !isNaN(parseInt(p.age)) && parseInt(p.age) >= 0 && (
                   <div className="text-xs">
                     <span className={`inline-flex px-2.5 py-1 rounded-full font-medium ${
-                      getTicketType(parseInt(p.age)) === 'free'
-                        ? 'bg-accent/20 text-accent'
-                        : getTicketType(parseInt(p.age)) === 'half'
-                        ? 'bg-primary/20 text-primary'
-                        : 'bg-muted text-foreground'
+                      getTicketType(parseInt(p.age)) === 'free' ? 'bg-accent/20 text-accent'
+                      : getTicketType(parseInt(p.age)) === 'half' ? 'bg-primary/20 text-primary'
+                      : 'bg-muted text-foreground'
                     }`}>
                       {getTicketLabel(getTicketType(parseInt(p.age)))}
                       {getTicketType(parseInt(p.age)) !== 'free' && ` — ₹${getTicketType(parseInt(p.age)) === 'half' ? Math.round(bus.price / 2) : bus.price}`}
@@ -206,7 +184,6 @@ const PassengerDetailsPage = () => {
             )}
           </div>
 
-          {/* Fare Summary */}
           <div className="glass rounded-xl p-5 space-y-3 h-fit animate-fade-in">
             <h3 className="font-heading font-semibold text-sm">Fare Summary</h3>
             <div className="text-sm space-y-1.5 text-muted-foreground">
@@ -214,7 +191,6 @@ const PassengerDetailsPage = () => {
               <p>{bus.route_from} → {bus.route_to}</p>
               <p>{bus.date}</p>
               <p className="font-mono text-xs">{bus.departure_time} – {bus.arrival_time}</p>
-
               {breakdown.length > 0 && (
                 <div className="border-t border-border pt-2 mt-2 space-y-1">
                   {breakdown.map((b, i) => (
@@ -225,19 +201,18 @@ const PassengerDetailsPage = () => {
                   ))}
                 </div>
               )}
-
               <div className="border-t border-border pt-2 mt-2 flex justify-between text-foreground font-semibold">
                 <span>Total</span>
                 <span className="gradient-text font-heading">₹{total}</span>
               </div>
             </div>
-
             <Button variant="amber" className="w-full" size="lg" onClick={handleProceed}>
               <UserPlus className="h-4 w-4 mr-2" /> Verify & Proceed
             </Button>
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 };
