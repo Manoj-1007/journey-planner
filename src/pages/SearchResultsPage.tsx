@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import SeatMap from '@/components/SeatMap';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { Clock, MapPin, Bus, ArrowLeft } from 'lucide-react';
+import { Clock, MapPin, Bus, ArrowLeft, Star } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface BusRow {
@@ -50,45 +51,31 @@ const SearchResultsPage = () => {
     enabled: !!from && !!to && !!date,
   });
 
-  // Realtime subscription for live seat updates
+  // Realtime subscription
   useEffect(() => {
     if (!from || !to || !date) return;
-
     const channel = supabase
       .channel('buses-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'buses',
-        },
-        (payload) => {
-          const updated = payload.new as BusRow;
-          queryClient.setQueryData(['buses', from, to, date], (old: BusRow[] | undefined) => {
-            if (!old) return old;
-            return old.map(bus => bus.id === updated.id ? { ...bus, ...updated } : bus);
-          });
-        }
-      )
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'buses' }, (payload) => {
+        const updated = payload.new as BusRow;
+        queryClient.setQueryData(['buses', from, to, date], (old: BusRow[] | undefined) => {
+          if (!old) return old;
+          return old.map(bus => bus.id === updated.id ? { ...bus, ...updated } : bus);
+        });
+      })
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [from, to, date, queryClient]);
 
   const [expandedBus, setExpandedBus] = useState<string | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<Record<string, number[]>>({});
 
   const toggleSeat = (busId: string, seat: number) => {
-    // Check if the seat is still available in the latest data
     const bus = results.find(b => b.id === busId);
     if (bus && bus.booked_seats.includes(seat)) {
       toast.error('This seat is already booked. Please select another seat.');
       return;
     }
-
     setSelectedSeats(prev => {
       const current = prev[busId] || [];
       if (current.includes(seat)) return { ...prev, [busId]: current.filter(s => s !== seat) };
@@ -100,18 +87,12 @@ const SearchResultsPage = () => {
     if (!user) { navigate('/login'); return; }
     const seats = selectedSeats[bus.id] || [];
     if (seats.length === 0) return;
-
-    // Verify seats are still available before proceeding
     const nowBooked = seats.filter(s => bus.booked_seats.includes(s));
     if (nowBooked.length > 0) {
       toast.error(`Seat(s) ${nowBooked.join(', ')} already booked. Please select different seats.`);
-      setSelectedSeats(prev => ({
-        ...prev,
-        [bus.id]: prev[bus.id]?.filter(s => !nowBooked.includes(s)) || []
-      }));
+      setSelectedSeats(prev => ({ ...prev, [bus.id]: prev[bus.id]?.filter(s => !nowBooked.includes(s)) || [] }));
       return;
     }
-
     navigate(`/passenger-details?busId=${bus.id}&seats=${seats.join(',')}`);
   };
 
@@ -136,7 +117,24 @@ const SearchResultsPage = () => {
           <p className="text-sm text-muted-foreground">{date} · {isLoading ? 'Searching...' : `${results.length} bus${results.length !== 1 ? 'es' : ''} found`}</p>
         </div>
 
-        {!isLoading && results.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="glass rounded-xl p-5 animate-pulse">
+                <div className="flex justify-between items-center">
+                  <div className="space-y-2">
+                    <div className="skeleton h-5 w-40" />
+                    <div className="skeleton h-3 w-24" />
+                  </div>
+                  <div className="flex gap-4 items-center">
+                    <div className="skeleton h-4 w-28" />
+                    <div className="skeleton h-6 w-16" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : results.length === 0 ? (
           <div className="glass rounded-xl p-16 text-center animate-fade-in">
             <Bus className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground mb-4">No buses found for this route and date.</p>
@@ -147,10 +145,8 @@ const SearchResultsPage = () => {
             {results.map((bus, i) => {
               const isExpanded = expandedBus === bus.id;
               const busSeats = selectedSeats[bus.id] || [];
-              // Filter out any selected seats that have since been booked
               const validSeats = busSeats.filter(s => !bus.booked_seats.includes(s));
               if (validSeats.length !== busSeats.length) {
-                // Auto-clean stale selections
                 setTimeout(() => setSelectedSeats(prev => ({ ...prev, [bus.id]: validSeats })), 0);
               }
               return (
@@ -230,6 +226,7 @@ const SearchResultsPage = () => {
           </div>
         )}
       </main>
+      <Footer />
     </div>
   );
 };

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -137,7 +138,7 @@ const PaymentPage = () => {
     try {
       const options = {
         key: RAZORPAY_KEY_ID, amount: total * 100, currency: 'INR',
-        name: 'BusGo', description: `${bus.route_from} → ${bus.route_to} | Seats: ${seats.join(', ')}`,
+        name: 'MANO', description: `${bus.route_from} → ${bus.route_to} | Seats: ${seats.join(', ')}`,
         prefill: { name: profile?.name || '', email: user.email || '', contact: profile?.phone || '' },
         theme: { color: '#7c3aed' },
         handler: async (response: { razorpay_payment_id: string }) => {
@@ -284,6 +285,7 @@ const PaymentPage = () => {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 };

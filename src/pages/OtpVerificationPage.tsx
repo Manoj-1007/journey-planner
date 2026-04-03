@@ -31,9 +31,7 @@ const OtpVerificationPage = () => {
     toast.success(`OTP sent! (Demo: ${code})`, { duration: 8000 });
   }, []);
 
-  useEffect(() => {
-    if (!sent) generateOtp();
-  }, [sent, generateOtp]);
+  useEffect(() => { if (!sent) generateOtp(); }, [sent, generateOtp]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -42,14 +40,8 @@ const OtpVerificationPage = () => {
   }, [cooldown]);
 
   const handleVerify = () => {
-    if (!otp.trim()) {
-      toast.error('Please enter the OTP');
-      return;
-    }
-    if (otp.length !== 6 || !/^\d{6}$/.test(otp)) {
-      toast.error('OTP must be a 6-digit number');
-      return;
-    }
+    if (!otp.trim()) { toast.error('Please enter the OTP'); return; }
+    if (otp.length !== 6 || !/^\d{6}$/.test(otp)) { toast.error('OTP must be a 6-digit number'); return; }
     setVerifying(true);
     setTimeout(() => {
       if (otp === generatedOtp) {
@@ -64,11 +56,6 @@ const OtpVerificationPage = () => {
       }
       setVerifying(false);
     }, 600);
-  };
-
-  const handleResend = () => {
-    setOtp('');
-    generateOtp();
   };
 
   if (!user) {
@@ -117,22 +104,11 @@ const OtpVerificationPage = () => {
                 onChange={e => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setFailed(false); }}
                 onKeyDown={e => e.key === 'Enter' && handleVerify()}
               />
-
-              {failed && (
-                <p className="text-xs text-destructive font-medium">Incorrect OTP. Please try again.</p>
-              )}
-
+              {failed && <p className="text-xs text-destructive font-medium">Incorrect OTP. Please try again.</p>}
               <Button variant="amber" className="w-full" size="lg" onClick={handleVerify} disabled={verifying}>
                 {verifying ? 'Verifying...' : 'Verify & Proceed'}
               </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1.5 text-muted-foreground"
-                onClick={handleResend}
-                disabled={cooldown > 0}
-              >
+              <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => { setOtp(''); generateOtp(); }} disabled={cooldown > 0}>
                 <RefreshCw className="h-3.5 w-3.5" />
                 {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend OTP'}
               </Button>

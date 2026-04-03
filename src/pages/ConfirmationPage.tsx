@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, Download, Printer, Bus, Calendar, MapPin, Users } from 'lucide-react';
@@ -42,7 +43,13 @@ const ConfirmationPage = () => {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <main className="container py-16 text-center text-muted-foreground">Loading...</main>
+        <main className="container py-16 text-center">
+          <div className="max-w-md mx-auto space-y-4">
+            <div className="skeleton h-20 w-20 rounded-full mx-auto" />
+            <div className="skeleton h-6 w-48 mx-auto" />
+            <div className="skeleton h-40 w-full" />
+          </div>
+        </main>
       </div>
     );
   }
@@ -53,7 +60,7 @@ const ConfirmationPage = () => {
     (p) => `<tr><td style="padding:6px 12px">${p.name}</td><td style="padding:6px 12px">${p.age}</td><td style="padding:6px 12px">${p.gender}</td><td style="padding:6px 12px">${getTicketLabel(p.type)}</td><td style="padding:6px 12px;text-align:right">₹${p.fare}</td></tr>`
   ).join('');
 
-  const ticketHtml = `<html><head><title>BusGo Ticket - ${booking.id.slice(0, 8)}</title>
+  const ticketHtml = `<html><head><title>MANO Ticket - ${booking.id.slice(0, 8)}</title>
 <style>
   body{font-family:'Segoe UI',system-ui,sans-serif;padding:2rem;max-width:520px;margin:auto;color:#1a1a2e}
   .header{background:linear-gradient(135deg,#7c3aed,#0ea5e9);color:white;padding:1.5rem;border-radius:12px 12px 0 0;text-align:center}
@@ -68,7 +75,7 @@ const ConfirmationPage = () => {
   td{border-bottom:1px solid #f0f0f5}
   .footer{text-align:center;margin-top:1rem;font-size:0.75rem;color:#9ca3af}
 </style></head><body>
-<div class="header"><h1>🚌 BusGo Ticket</h1><p>Booking ID: ${booking.id.slice(0, 8)}</p></div>
+<div class="header"><h1>🚌 MANO Ticket</h1><p>Booking ID: ${booking.id.slice(0, 8)}</p></div>
 <div class="body">
 <div class="row"><span class="label">Bus</span><span>${booking.bus_name}</span></div>
 <div class="row"><span class="label">Route</span><span>${booking.route_from} → ${booking.route_to}</span></div>
@@ -79,7 +86,7 @@ ${passengerRows ? `<table><thead><tr><th>Name</th><th>Age</th><th>Gender</th><th
 <div class="row"><span class="label">Payment</span><span>${booking.payment_method}</span></div>
 <div class="row total"><span>Total Paid</span><span>₹${booking.total_amount}</span></div>
 </div>
-<p class="footer">Thank you for choosing BusGo! Have a safe journey.</p>
+<p class="footer">Thank you for choosing MANO! Have a safe journey.</p>
 </body></html>`;
 
   return (
@@ -89,13 +96,13 @@ ${passengerRows ? `<table><thead><tr><th>Name</th><th>Age</th><th>Gender</th><th
       <main className="container max-w-md py-12 relative z-10">
         <div className="glass rounded-2xl p-8 text-center space-y-6 animate-slide-up">
           <div className="relative">
-            <div className="w-20 h-20 rounded-full gradient-primary mx-auto flex items-center justify-center">
+            <div className="w-20 h-20 rounded-full gradient-primary mx-auto flex items-center justify-center animate-fade-in">
               <CheckCircle2 className="h-10 w-10 text-primary-foreground" />
             </div>
           </div>
           <div>
             <h1 className="text-2xl font-heading font-bold mb-1">Payment Successful!</h1>
-            <p className="text-sm text-muted-foreground">Your ticket has been booked successfully.</p>
+            <p className="text-sm text-muted-foreground">Your MANO ticket has been booked successfully.</p>
           </div>
 
           <div className="bg-background/50 border border-border rounded-xl p-5 text-left space-y-3 text-sm">
@@ -103,7 +110,6 @@ ${passengerRows ? `<table><thead><tr><th>Name</th><th>Age</th><th>Gender</th><th
               <span>Booking ID:</span>
               <span className="font-mono">{booking.id.slice(0, 8)}</span>
             </div>
-
             <div className="space-y-2">
               <div className="flex items-start gap-3">
                 <Bus className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
@@ -165,7 +171,7 @@ ${passengerRows ? `<table><thead><tr><th>Name</th><th>Age</th><th>Gender</th><th
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
-              a.download = `BusGo-Ticket-${booking.id.slice(0, 8)}.html`;
+              a.download = `MANO-Ticket-${booking.id.slice(0, 8)}.html`;
               document.body.appendChild(a);
               a.click();
               document.body.removeChild(a);
@@ -181,6 +187,7 @@ ${passengerRows ? `<table><thead><tr><th>Name</th><th>Age</th><th>Gender</th><th
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 };
