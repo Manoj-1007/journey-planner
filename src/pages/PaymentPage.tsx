@@ -285,6 +285,7 @@ const PaymentPage = () => {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 };
