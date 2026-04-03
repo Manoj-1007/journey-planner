@@ -16,16 +16,16 @@ const SeatMap = ({ bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
       {/* Legend */}
       <div className="flex items-center gap-5 text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 border border-border rounded-md bg-muted/30" />
-          <span>Available</span>
+          <div className="w-7 h-7 rounded-md" style={{ background: 'hsl(145, 70%, 42%)' }} />
+          <span style={{ color: 'hsl(145, 70%, 42%)' }}>Available</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-md" style={{ background: 'hsl(217, 91%, 60%)' }} />
+          <span style={{ color: 'hsl(217, 91%, 60%)' }}>Selected</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-destructive/80 rounded-md flex items-center justify-center text-destructive-foreground font-mono text-[10px]">✕</div>
           <span className="text-destructive">Booked</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-md" style={{ background: 'hsl(145, 70%, 42%)' }} />
-          <span style={{ color: 'hsl(145, 70%, 42%)' }}>Selected</span>
         </div>
       </div>
 
@@ -52,11 +52,16 @@ const SeatMap = ({ bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
                         onClick={() => isAvailable && onToggleSeat(seatNum)}
                         className={`w-9 h-9 rounded-md font-mono text-xs transition-all duration-200 flex items-center justify-center font-medium
                           ${isBooked ? 'bg-destructive/80 text-destructive-foreground cursor-not-allowed' : ''}
-                          ${isSelected ? 'text-white shadow-lg shadow-green-500/30' : ''}
-                          ${isAvailable && !isSelected ? 'border border-border bg-muted/30 hover:border-primary hover:shadow-[0_0_12px_hsl(250,85%,65%,0.3)] cursor-pointer' : ''}
+                          ${isSelected ? 'text-white shadow-lg shadow-blue-500/30' : ''}
+                          ${isAvailable && !isSelected ? 'text-white cursor-pointer hover:shadow-[0_0_12px_hsl(145,70%,42%,0.4)]' : ''}
                         `}
-                        style={isSelected ? { background: 'hsl(145, 70%, 42%)' } : undefined}
-                        title={`Seat ${seatNum}`}
+                        style={
+                          isBooked ? undefined
+                          : isSelected ? { background: 'hsl(217, 91%, 60%)' }
+                          : isAvailable ? { background: 'hsl(145, 70%, 42%)' }
+                          : undefined
+                        }
+                        title={isBooked ? `Seat ${seatNum} - Already Booked` : `Seat ${seatNum}`}
                       >
                         {isBooked ? '✕' : seatNum}
                       </button>

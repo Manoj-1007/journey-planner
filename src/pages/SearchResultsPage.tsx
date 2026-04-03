@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Header from '@/components/Header';
 import SeatMap from '@/components/SeatMap';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Clock, MapPin, Bus, ArrowLeft } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface BusRow {
   id: string;
@@ -32,6 +33,7 @@ const SearchResultsPage = () => {
   const date = searchParams.get('date') || '';
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: results = [], isLoading } = useQuery({
     queryKey: ['buses', from, to, date],
@@ -48,10 +50,45 @@ const SearchResultsPage = () => {
     enabled: !!from && !!to && !!date,
   });
 
+  // Realtime subscription for live seat updates
+  useEffect(() => {
+    if (!from || !to || !date) return;
+
+    const channel = supabase
+      .channel('buses-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'buses',
+        },
+        (payload) => {
+          const updated = payload.new as BusRow;
+          queryClient.setQueryData(['buses', from, to, date], (old: BusRow[] | undefined) => {
+            if (!old) return old;
+            return old.map(bus => bus.id === updated.id ? { ...bus, ...updated } : bus);
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [from, to, date, queryClient]);
+
   const [expandedBus, setExpandedBus] = useState<string | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<Record<string, number[]>>({});
 
   const toggleSeat = (busId: string, seat: number) => {
+    // Check if the seat is still available in the latest data
+    const bus = results.find(b => b.id === busId);
+    if (bus && bus.booked_seats.includes(seat)) {
+      toast.error('This seat is already booked. Please select another seat.');
+      return;
+    }
+
     setSelectedSeats(prev => {
       const current = prev[busId] || [];
       if (current.includes(seat)) return { ...prev, [busId]: current.filter(s => s !== seat) };
@@ -63,6 +100,18 @@ const SearchResultsPage = () => {
     if (!user) { navigate('/login'); return; }
     const seats = selectedSeats[bus.id] || [];
     if (seats.length === 0) return;
+
+    // Verify seats are still available before proceeding
+    const nowBooked = seats.filter(s => bus.booked_seats.includes(s));
+    if (nowBooked.length > 0) {
+      toast.error(`Seat(s) ${nowBooked.join(', ')} already booked. Please select different seats.`);
+      setSelectedSeats(prev => ({
+        ...prev,
+        [bus.id]: prev[bus.id]?.filter(s => !nowBooked.includes(s)) || []
+      }));
+      return;
+    }
+
     navigate(`/passenger-details?busId=${bus.id}&seats=${seats.join(',')}`);
   };
 
@@ -98,6 +147,12 @@ const SearchResultsPage = () => {
             {results.map((bus, i) => {
               const isExpanded = expandedBus === bus.id;
               const busSeats = selectedSeats[bus.id] || [];
+              // Filter out any selected seats that have since been booked
+              const validSeats = busSeats.filter(s => !bus.booked_seats.includes(s));
+              if (validSeats.length !== busSeats.length) {
+                // Auto-clean stale selections
+                setTimeout(() => setSelectedSeats(prev => ({ ...prev, [bus.id]: validSeats })), 0);
+              }
               return (
                 <div
                   key={bus.id}
@@ -137,17 +192,17 @@ const SearchResultsPage = () => {
                       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
                         <SeatMap
                           bus={toBusProp(bus)}
-                          selectedSeats={busSeats}
+                          selectedSeats={validSeats}
                           onToggleSeat={(seat) => toggleSeat(bus.id, seat)}
                         />
                         <div className="glass rounded-xl p-5 space-y-3 h-fit">
                           <h3 className="font-heading font-semibold text-sm">Booking Summary</h3>
-                          {busSeats.length > 0 ? (
+                          {validSeats.length > 0 ? (
                             <>
                               <div className="text-sm space-y-1">
                                 <div className="flex justify-between text-muted-foreground">
                                   <span>Seats</span>
-                                  <span className="font-mono">{busSeats.join(', ')}</span>
+                                  <span className="font-mono">{validSeats.join(', ')}</span>
                                 </div>
                                 <div className="flex justify-between text-muted-foreground">
                                   <span>Price per seat</span>
@@ -155,7 +210,7 @@ const SearchResultsPage = () => {
                                 </div>
                                 <div className="flex justify-between font-semibold text-foreground border-t border-border pt-2 mt-2">
                                   <span>Total</span>
-                                  <span className="gradient-text font-heading">₹{busSeats.length * bus.price}</span>
+                                  <span className="gradient-text font-heading">₹{validSeats.length * bus.price}</span>
                                 </div>
                               </div>
                               <Button variant="amber" className="w-full" onClick={() => handleBook(bus)}>
