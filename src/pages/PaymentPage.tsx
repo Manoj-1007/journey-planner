@@ -137,7 +137,7 @@ const PaymentPage = () => {
     try {
       const options = {
         key: RAZORPAY_KEY_ID, amount: total * 100, currency: 'INR',
-        name: 'BusGo', description: `${bus.route_from} → ${bus.route_to} | Seats: ${seats.join(', ')}`,
+        name: 'MANO', description: `${bus.route_from} → ${bus.route_to} | Seats: ${seats.join(', ')}`,
         prefill: { name: profile?.name || '', email: user.email || '', contact: profile?.phone || '' },
         theme: { color: '#7c3aed' },
         handler: async (response: { razorpay_payment_id: string }) => {

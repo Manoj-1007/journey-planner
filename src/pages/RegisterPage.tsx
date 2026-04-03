@@ -45,7 +45,7 @@ const RegisterPage = () => {
               <UserPlus className="h-7 w-7 text-primary-foreground" />
             </div>
             <h1 className="text-2xl font-heading font-bold">Create Account</h1>
-            <p className="text-sm text-muted-foreground mt-1">Join BusGo and start booking</p>
+            <p className="text-sm text-muted-foreground mt-1">Join MANO and start booking</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && <p className="text-destructive text-sm text-center bg-destructive/10 rounded-lg p-2">{error}</p>}
