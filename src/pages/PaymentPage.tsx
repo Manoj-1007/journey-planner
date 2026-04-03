@@ -74,8 +74,19 @@ const PaymentPage = () => {
 
   const saveBooking = async (paymentRef: string) => {
     if (!bus || !user) return;
-    const newAvailable = bus.available_seats.filter((s: number) => !seats.includes(s));
-    const newBooked = [...bus.booked_seats, ...seats];
+
+    // Re-fetch latest bus data to prevent double booking
+    const { data: latestBus, error: fetchErr } = await supabase
+      .from('buses').select('available_seats, booked_seats').eq('id', bus.id).single();
+    if (fetchErr) throw fetchErr;
+
+    const alreadyBooked = seats.filter(s => latestBus.booked_seats.includes(s));
+    if (alreadyBooked.length > 0) {
+      throw new Error(`Seat(s) ${alreadyBooked.join(', ')} already booked. Please select different seats.`);
+    }
+
+    const newAvailable = latestBus.available_seats.filter((s: number) => !seats.includes(s));
+    const newBooked = [...latestBus.booked_seats, ...seats];
 
     const { data: booking, error: bookError } = await supabase.from('bookings').insert({
       user_id: user.id, bus_id: bus.id, bus_name: bus.name,
