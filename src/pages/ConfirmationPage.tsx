@@ -29,16 +29,6 @@ const ConfirmationPage = () => {
     }
   }, []);
 
-  // Also load from DB if sessionStorage was cleared (e.g. page refresh)
-  useEffect(() => {
-    if (passengers.length === 0 && booking) {
-      const details = (booking as any).passenger_details;
-      if (Array.isArray(details) && details.length > 0) {
-        setPassengers(details);
-      }
-    }
-  }, [booking]);
-
   const { data: booking, isLoading } = useQuery({
     queryKey: ['booking', bookingId],
     queryFn: async () => {
@@ -48,6 +38,16 @@ const ConfirmationPage = () => {
     },
     enabled: !!bookingId,
   });
+
+  // Load from DB if sessionStorage was cleared (e.g. page refresh)
+  useEffect(() => {
+    if (passengers.length === 0 && booking) {
+      const details = (booking as any).passenger_details;
+      if (Array.isArray(details) && details.length > 0) {
+        setPassengers(details);
+      }
+    }
+  }, [booking]);
 
   if (isLoading) {
     return (
