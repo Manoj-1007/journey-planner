@@ -1,4 +1,10 @@
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
+
 interface SeatMapProps {
+  busId: string;
   bus: {
     totalSeats: number;
     availableSeats: number[];
@@ -8,13 +14,83 @@ interface SeatMapProps {
   onToggleSeat: (seat: number) => void;
 }
 
-const SeatMap = ({ bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
+const SeatMap = ({ busId, bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
   const rows = Math.ceil(bus.totalSeats / 4);
+  const { user } = useAuth();
+  const [lockedSeats, setLockedSeats] = useState<Record<number, string>>({}); // seat -> locked_by user_id
+
+  // Fetch existing locks and subscribe to realtime changes
+  useEffect(() => {
+    if (!busId) return;
+
+    const fetchLocks = async () => {
+      const { data } = await supabase
+        .from('seat_locks')
+        .select('seat_number, locked_by, expires_at')
+        .eq('bus_id', busId);
+      if (data) {
+        const now = new Date();
+        const active: Record<number, string> = {};
+        data.forEach(lock => {
+          if (new Date(lock.expires_at) > now) {
+            active[lock.seat_number] = lock.locked_by;
+          }
+        });
+        setLockedSeats(active);
+      }
+    };
+
+    fetchLocks();
+
+    const channel = supabase
+      .channel(`seat-locks-${busId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'seat_locks', filter: `bus_id=eq.${busId}` }, () => {
+        fetchLocks();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [busId]);
+
+  const handleSeatClick = async (seatNum: number) => {
+    if (!user) return;
+
+    const isSelected = selectedSeats.includes(seatNum);
+
+    if (isSelected) {
+      // Deselect - remove lock
+      await supabase.from('seat_locks').delete().eq('bus_id', busId).eq('seat_number', seatNum).eq('locked_by', user.id);
+      onToggleSeat(seatNum);
+      return;
+    }
+
+    // Check if locked by someone else
+    const lockedBy = lockedSeats[seatNum];
+    if (lockedBy && lockedBy !== user.id) {
+      toast.error('This seat is temporarily reserved by another user. Please select another seat.');
+      return;
+    }
+
+    // Try to lock
+    const { error } = await supabase.from('seat_locks').upsert({
+      bus_id: busId,
+      seat_number: seatNum,
+      locked_by: user.id,
+      expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    }, { onConflict: 'bus_id,seat_number' });
+
+    if (error) {
+      toast.error('This seat is temporarily reserved. Please select another seat.');
+      return;
+    }
+
+    onToggleSeat(seatNum);
+  };
 
   return (
     <div className="space-y-4">
       {/* Legend */}
-      <div className="flex items-center gap-5 text-xs text-muted-foreground">
+      <div className="flex items-center gap-5 text-xs text-muted-foreground flex-wrap">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-md" style={{ background: 'hsl(145, 70%, 42%)' }} />
           <span style={{ color: 'hsl(145, 70%, 42%)' }}>Available</span>
@@ -26,6 +102,10 @@ const SeatMap = ({ bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-destructive/80 rounded-md flex items-center justify-center text-destructive-foreground font-mono text-[10px]">✕</div>
           <span className="text-destructive">Booked</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-md" style={{ background: 'hsl(45, 93%, 47%)' }} />
+          <span style={{ color: 'hsl(45, 93%, 47%)' }}>Locked</span>
         </div>
       </div>
 
@@ -45,25 +125,36 @@ const SeatMap = ({ bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
                   const isBooked = bus.bookedSeats.includes(seatNum);
                   const isSelected = selectedSeats.includes(seatNum);
                   const isAvailable = bus.availableSeats.includes(seatNum);
+                  const lockedBy = lockedSeats[seatNum];
+                  const isLockedByOther = lockedBy && user && lockedBy !== user.id;
+                  const isLockedByMe = lockedBy && user && lockedBy === user.id;
+                  const isDisabled = isBooked || !!isLockedByOther;
+
                   return (
                     <div key={seatNum} className="contents">
                       <button
-                        disabled={isBooked}
-                        onClick={() => isAvailable && onToggleSeat(seatNum)}
+                        disabled={isDisabled}
+                        onClick={() => isAvailable && !isLockedByOther && handleSeatClick(seatNum)}
                         className={`w-9 h-9 rounded-md font-mono text-xs transition-all duration-200 flex items-center justify-center font-medium
                           ${isBooked ? 'bg-destructive/80 text-destructive-foreground cursor-not-allowed' : ''}
                           ${isSelected ? 'text-white shadow-lg shadow-blue-500/30' : ''}
-                          ${isAvailable && !isSelected ? 'text-white cursor-pointer hover:shadow-[0_0_12px_hsl(145,70%,42%,0.4)]' : ''}
+                          ${isLockedByOther ? 'cursor-not-allowed opacity-80' : ''}
+                          ${isAvailable && !isSelected && !isLockedByOther ? 'text-white cursor-pointer hover:shadow-[0_0_12px_hsl(145,70%,42%,0.4)]' : ''}
                         `}
                         style={
                           isBooked ? undefined
                           : isSelected ? { background: 'hsl(217, 91%, 60%)' }
+                          : isLockedByOther ? { background: 'hsl(45, 93%, 47%)' }
                           : isAvailable ? { background: 'hsl(145, 70%, 42%)' }
                           : undefined
                         }
-                        title={isBooked ? `Seat ${seatNum} - Already Booked` : `Seat ${seatNum}`}
+                        title={
+                          isBooked ? `Seat ${seatNum} - Already Booked`
+                          : isLockedByOther ? `Seat ${seatNum} - Temporarily Reserved`
+                          : `Seat ${seatNum}`
+                        }
                       >
-                        {isBooked ? '✕' : seatNum}
+                        {isBooked ? '✕' : isLockedByOther ? '⏳' : seatNum}
                       </button>
                       {idx === 1 && <div className="w-5" />}
                     </div>
