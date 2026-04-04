@@ -89,7 +89,7 @@ const PaymentPage = () => {
       _seats: seats,
       _total_amount: total,
       _payment_method: paymentRef,
-      _passenger_details: passengers,
+      _passenger_details: JSON.parse(JSON.stringify(passengers)),
     });
 
     if (error) throw new Error(error.message);
