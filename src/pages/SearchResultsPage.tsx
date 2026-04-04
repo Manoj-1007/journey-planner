@@ -100,6 +100,7 @@ const SearchResultsPage = () => {
     totalSeats: bus.total_seats,
     availableSeats: bus.available_seats,
     bookedSeats: bus.booked_seats,
+    date: bus.date,
   });
 
   return (

@@ -214,7 +214,28 @@ export type Database = {
     }
     Functions: {
       auto_update_bus_dates: { Args: never; Returns: undefined }
+      book_seats_atomic: {
+        Args: {
+          _arrival_time: string
+          _bus_id: string
+          _bus_name: string
+          _date: string
+          _departure_time: string
+          _passenger_details?: Json
+          _payment_method: string
+          _route_from: string
+          _route_to: string
+          _seats: number[]
+          _total_amount: number
+          _user_id: string
+        }
+        Returns: Json
+      }
       cleanup_expired_locks: { Args: never; Returns: undefined }
+      get_booked_seats_24h: {
+        Args: { _bus_id: string; _date: string }
+        Returns: number[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
