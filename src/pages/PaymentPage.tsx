@@ -94,13 +94,17 @@ const PaymentPage = () => {
       route_from: bus.route_from, route_to: bus.route_to, date: bus.date,
       departure_time: bus.departure_time, arrival_time: bus.arrival_time,
       seats, total_amount: total, payment_method: paymentRef,
-    }).select().single();
+      passenger_details: passengers,
+    } as any).select().single();
     if (bookError) throw bookError;
 
     const { error: busError } = await supabase.from('buses')
       .update({ available_seats: newAvailable, booked_seats: newBooked })
       .eq('id', bus.id);
     if (busError) throw busError;
+
+    // Release seat locks after successful booking
+    await supabase.from('seat_locks').delete().eq('bus_id', bus.id).in('seat_number', seats);
 
     sessionStorage.setItem('bookingPassengers', JSON.stringify(breakdown));
     sessionStorage.removeItem('otpVerified');

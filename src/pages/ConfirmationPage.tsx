@@ -39,6 +39,16 @@ const ConfirmationPage = () => {
     enabled: !!bookingId,
   });
 
+  // Load from DB if sessionStorage was cleared (e.g. page refresh)
+  useEffect(() => {
+    if (passengers.length === 0 && booking) {
+      const details = (booking as any).passenger_details;
+      if (Array.isArray(details) && details.length > 0) {
+        setPassengers(details);
+      }
+    }
+  }, [booking]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">

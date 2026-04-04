@@ -23,6 +23,7 @@ export type Database = {
           date: string
           departure_time: string
           id: string
+          passenger_details: Json | null
           payment_method: string
           route_from: string
           route_to: string
@@ -39,6 +40,7 @@ export type Database = {
           date: string
           departure_time: string
           id?: string
+          passenger_details?: Json | null
           payment_method: string
           route_from: string
           route_to: string
@@ -55,6 +57,7 @@ export type Database = {
           date?: string
           departure_time?: string
           id?: string
+          passenger_details?: Json | null
           payment_method?: string
           route_from?: string
           route_to?: string
@@ -160,6 +163,33 @@ export type Database = {
         }
         Relationships: []
       }
+      seat_locks: {
+        Row: {
+          bus_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          locked_by: string
+          seat_number: number
+        }
+        Insert: {
+          bus_id: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          locked_by: string
+          seat_number: number
+        }
+        Update: {
+          bus_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          locked_by?: string
+          seat_number?: number
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -184,6 +214,7 @@ export type Database = {
     }
     Functions: {
       auto_update_bus_dates: { Args: never; Returns: undefined }
+      cleanup_expired_locks: { Args: never; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

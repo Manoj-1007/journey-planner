@@ -187,6 +187,7 @@ const SearchResultsPage = () => {
                     <div className="border-t border-border p-5 animate-fade-in">
                       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
                         <SeatMap
+                          busId={bus.id}
                           bus={toBusProp(bus)}
                           selectedSeats={validSeats}
                           onToggleSeat={(seat) => toggleSeat(bus.id, seat)}
