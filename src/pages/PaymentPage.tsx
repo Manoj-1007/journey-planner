@@ -76,35 +76,26 @@ const PaymentPage = () => {
   const saveBooking = async (paymentRef: string) => {
     if (!bus || !user) return;
 
-    // Re-fetch latest bus data to prevent double booking
-    const { data: latestBus, error: fetchErr } = await supabase
-      .from('buses').select('available_seats, booked_seats').eq('id', bus.id).single();
-    if (fetchErr) throw fetchErr;
+    // Use atomic database function to prevent race conditions
+    const { data, error } = await supabase.rpc('book_seats_atomic', {
+      _user_id: user.id,
+      _bus_id: bus.id,
+      _bus_name: bus.name,
+      _route_from: bus.route_from,
+      _route_to: bus.route_to,
+      _date: bus.date,
+      _departure_time: bus.departure_time,
+      _arrival_time: bus.arrival_time,
+      _seats: seats,
+      _total_amount: total,
+      _payment_method: paymentRef,
+      _passenger_details: passengers,
+    });
 
-    const alreadyBooked = seats.filter(s => latestBus.booked_seats.includes(s));
-    if (alreadyBooked.length > 0) {
-      throw new Error(`Seat(s) ${alreadyBooked.join(', ')} already booked. Please select different seats.`);
-    }
+    if (error) throw new Error(error.message);
 
-    const newAvailable = latestBus.available_seats.filter((s: number) => !seats.includes(s));
-    const newBooked = [...latestBus.booked_seats, ...seats];
-
-    const { data: booking, error: bookError } = await supabase.from('bookings').insert({
-      user_id: user.id, bus_id: bus.id, bus_name: bus.name,
-      route_from: bus.route_from, route_to: bus.route_to, date: bus.date,
-      departure_time: bus.departure_time, arrival_time: bus.arrival_time,
-      seats, total_amount: total, payment_method: paymentRef,
-      passenger_details: passengers,
-    } as any).select().single();
-    if (bookError) throw bookError;
-
-    const { error: busError } = await supabase.from('buses')
-      .update({ available_seats: newAvailable, booked_seats: newBooked })
-      .eq('id', bus.id);
-    if (busError) throw busError;
-
-    // Release seat locks after successful booking
-    await supabase.from('seat_locks').delete().eq('bus_id', bus.id).in('seat_number', seats);
+    const result = data as any;
+    if (result?.error) throw new Error(result.error);
 
     sessionStorage.setItem('bookingPassengers', JSON.stringify(breakdown));
     sessionStorage.removeItem('otpVerified');
@@ -112,7 +103,7 @@ const PaymentPage = () => {
 
     toast.success('Payment Successful – Ticket Booked!');
     queryClient.invalidateQueries({ queryKey: ['buses'] });
-    navigate(`/confirmation/${booking.id}`);
+    navigate(`/confirmation/${result.booking_id}`);
   };
 
   const handleCardPayment = async () => {

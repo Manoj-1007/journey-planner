@@ -9,6 +9,7 @@ interface SeatMapProps {
     totalSeats: number;
     availableSeats: number[];
     bookedSeats: number[];
+    date: string;
   };
   selectedSeats: number[];
   onToggleSeat: (seat: number) => void;
@@ -17,9 +18,37 @@ interface SeatMapProps {
 const SeatMap = ({ busId, bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
   const rows = Math.ceil(bus.totalSeats / 4);
   const { user } = useAuth();
-  const [lockedSeats, setLockedSeats] = useState<Record<number, string>>({}); // seat -> locked_by user_id
+  const [lockedSeats, setLockedSeats] = useState<Record<number, string>>({});
+  const [bookedSeats24h, setBookedSeats24h] = useState<number[]>([]);
 
-  // Fetch existing locks and subscribe to realtime changes
+  // Fetch 24-hour booked seats from database
+  useEffect(() => {
+    if (!busId || !bus.date) return;
+
+    const fetchBookedSeats = async () => {
+      const { data, error } = await supabase.rpc('get_booked_seats_24h', {
+        _bus_id: busId,
+        _date: bus.date,
+      });
+      if (!error && data) {
+        setBookedSeats24h(data as number[]);
+      }
+    };
+
+    fetchBookedSeats();
+
+    // Re-fetch when bookings change
+    const channel = supabase
+      .channel(`bookings-${busId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, () => {
+        fetchBookedSeats();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [busId, bus.date]);
+
+  // Fetch seat locks and subscribe to realtime changes
   useEffect(() => {
     if (!busId) return;
 
@@ -52,13 +81,21 @@ const SeatMap = ({ busId, bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
     return () => { supabase.removeChannel(channel); };
   }, [busId]);
 
+  // Combine booked seats from bus data AND 24-hour bookings
+  const allBookedSeats = Array.from(new Set([...bus.bookedSeats, ...bookedSeats24h]));
+
   const handleSeatClick = async (seatNum: number) => {
     if (!user) return;
+
+    // Double-check against 24h booked seats
+    if (allBookedSeats.includes(seatNum)) {
+      toast.error('This seat is already booked. Please select another seat.');
+      return;
+    }
 
     const isSelected = selectedSeats.includes(seatNum);
 
     if (isSelected) {
-      // Deselect - remove lock
       await supabase.from('seat_locks').delete().eq('bus_id', busId).eq('seat_number', seatNum).eq('locked_by', user.id);
       onToggleSeat(seatNum);
       return;
@@ -105,7 +142,7 @@ const SeatMap = ({ busId, bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
         </div>
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-md" style={{ background: 'hsl(45, 93%, 47%)' }} />
-          <span style={{ color: 'hsl(45, 93%, 47%)' }}>Locked</span>
+          <span style={{ color: 'hsl(45, 93%, 47%)' }}>Reserved</span>
         </div>
       </div>
 
@@ -122,13 +159,12 @@ const SeatMap = ({ busId, bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
             return (
               <div key={row} className="flex justify-center gap-2">
                 {seatsInRow.map((seatNum, idx) => {
-                  const isBooked = bus.bookedSeats.includes(seatNum);
+                  const isBooked = allBookedSeats.includes(seatNum);
                   const isSelected = selectedSeats.includes(seatNum);
-                  const isAvailable = bus.availableSeats.includes(seatNum);
+                  const isAvailable = bus.availableSeats.includes(seatNum) && !isBooked;
                   const lockedBy = lockedSeats[seatNum];
-                  const isLockedByOther = lockedBy && user && lockedBy !== user.id;
-                  const isLockedByMe = lockedBy && user && lockedBy === user.id;
-                  const isDisabled = isBooked || !!isLockedByOther;
+                  const isLockedByOther = !!(lockedBy && user && lockedBy !== user.id);
+                  const isDisabled = isBooked || isLockedByOther;
 
                   return (
                     <div key={seatNum} className="contents">
@@ -138,7 +174,7 @@ const SeatMap = ({ busId, bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
                         className={`w-9 h-9 rounded-md font-mono text-xs transition-all duration-200 flex items-center justify-center font-medium
                           ${isBooked ? 'bg-destructive/80 text-destructive-foreground cursor-not-allowed' : ''}
                           ${isSelected ? 'text-white shadow-lg shadow-blue-500/30' : ''}
-                          ${isLockedByOther ? 'cursor-not-allowed opacity-80' : ''}
+                          ${isLockedByOther ? 'cursor-not-allowed opacity-80 text-white' : ''}
                           ${isAvailable && !isSelected && !isLockedByOther ? 'text-white cursor-pointer hover:shadow-[0_0_12px_hsl(145,70%,42%,0.4)]' : ''}
                         `}
                         style={
@@ -149,7 +185,7 @@ const SeatMap = ({ busId, bus, selectedSeats, onToggleSeat }: SeatMapProps) => {
                           : undefined
                         }
                         title={
-                          isBooked ? `Seat ${seatNum} - Already Booked`
+                          isBooked ? `Seat ${seatNum} - Booked (24hr lock)`
                           : isLockedByOther ? `Seat ${seatNum} - Temporarily Reserved`
                           : `Seat ${seatNum}`
                         }
